@@ -3,20 +3,20 @@
 """Post test results to S3. This class is probably not relevant to you, it's for deeposm.org."""
 
 import pickle
-from src.config import CACHE_PATH, METADATA_PATH
+from src.config import METADATA_FILE, RASTER_DATAPATHS_FILE
 from src.s3_client_deeposm import post_findings_to_s3
-from src.single_layer_network import load_model, MODEL_METADATA_PATH
+from src.single_layer_network import load_model, MODEL_METADATA_FILE
 
 
 def main():
     """Post test results to an S3 bucket."""
-    with open(CACHE_PATH + 'raster_data_paths.pickle', 'r') as infile:
+    with open(RASTER_DATAPATHS_FILE, 'r') as infile:
         raster_data_paths = pickle.load(infile)
 
-    with open(CACHE_PATH + METADATA_PATH, 'r') as infile:
+    with open(METADATA_FILE, 'r') as infile:
         training_info = pickle.load(infile)
 
-    with open(CACHE_PATH + MODEL_METADATA_PATH, 'r') as infile:
+    with open(MODEL_METADATA_FILE, 'r') as infile:
         model_info = pickle.load(infile)
 
     model = load_model(model_info['neural_net_type'], model_info['tile_size'],

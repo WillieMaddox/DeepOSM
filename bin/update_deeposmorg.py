@@ -5,7 +5,7 @@ import requests
 
 from src.s3_client_deeposm import post_findings_to_s3
 from src.single_layer_network import train_on_cached_data
-from src.training_data import CACHE_PATH, METADATA_PATH, download_and_serialize
+from src.training_data import METADATA_FILE, download_and_serialize
 
 
 def main():
@@ -23,7 +23,7 @@ def main():
     tile_size = 64
     pixels_to_fatten_roads = 3
     tile_overlap = 1
-
+    naip_extent = None  # WMIV 3/31/17
     neural_net = 'two_layer_relu_conv'
     number_of_epochs = 10
     randomize_naips = False
@@ -34,6 +34,7 @@ def main():
                                                    randomize_naips,
                                                    state,
                                                    naip_year,
+                                                   naip_extent,
                                                    extract_type,
                                                    bands,
                                                    tile_size,
@@ -41,7 +42,7 @@ def main():
                                                    filenames,
                                                    tile_overlap)
         model = train_on_cached_data(neural_net, number_of_epochs)
-        with open(CACHE_PATH + METADATA_PATH, 'r') as infile:
+        with open(METADATA_FILE, 'r') as infile:
             training_info = pickle.load(infile)
         post_findings_to_s3(raster_data_paths, model, training_info, training_info['bands'], False)
 

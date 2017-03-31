@@ -68,7 +68,6 @@ class WayExtracter(o.SimpleHandler):
 
         for tag in w.tags:
             way_dict['tags'].append((tag.k, tag.v))
-
         self.add_linestring(w, way_dict)
 
     def extract_way_type(self, w):
@@ -96,6 +95,7 @@ class WayExtracter(o.SimpleHandler):
                     'ends_have_same_id': w.ends_have_same_id(),
                     'id': w.id,
                     'tags': []}
+
         for tag in w.tags:
             way_dict['tags'].append((tag.k, tag.v))
         self.add_linestring(w, way_dict)

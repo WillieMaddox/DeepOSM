@@ -23,40 +23,42 @@ def create_parser():
     parser.add_argument("--pixels-to-fatten-roads",
                         default=3,
                         type=int,
-                        help="the number of px to fatten a road centerline (e.g. the default 3 "
-                             "makes roads 7px wide)")
+                        help="the number of px to fatten a road centerline "
+                             "(e.g. the default 3 makes roads 7px wide)")
     parser.add_argument("--percent-for-training-data",
                         default=.90,
                         type=float,
-                        help="how much data to allocate for training. the remainder is left for "
-                             "test")
+                        help="how much data to allocate for training. the remainder is left for test")
     parser.add_argument("--bands",
                         default=[1, 1, 1, 1],
                         nargs=4,
                         type=int,
                         help="specify which bands to activate (R  G  B  IR)"
                              "--bands 1 1 1 1 (which activates only all bands)")
-    parser.add_argument(
-        "--label-data-files",
-        nargs='+',
-        default=[
-            'http://download.geofabrik.de/north-america/us/delaware-latest.osm.pbf',
-        ],
-        type=str,
-        help="PBF files to extract road/feature label info from")
+    parser.add_argument("--label-data-files",
+                        nargs='+',
+                        default=['http://download.geofabrik.de/north-america/us/delaware-latest.osm.pbf'],
+                        type=str,
+                        help="PBF files to extract road/feature label info from")
     parser.add_argument("--naip-path",
                         default=['de', '2013'],
                         nargs=2,
                         type=str,
                         help="specify the state and year for the NAIPs to analyze"
                              "--naip-path de 2013 (defaults to some Delaware data)")
+    parser.add_argument("--naip-extent",
+                        default=[-75.58, 39.13, -75.47, 39.20],
+                        nargs=4,
+                        type=float,
+                        help="only use/download naips if they overlap with the extent."
+                             "values should be in decimal degrees and ordered [minx, miny, maxx, maxy]."
+                             "--naip-extent -75.58, 39.13, -75.47, 39.20 (defaults to Dover, Delaware)")
     parser.add_argument("--randomize-naips",
                         default=False,
                         action='store_false',
-                        help="turn on this arg if you don't want to get NAIPs in order from the "
-                             "bucket path")
+                        help="turn on this arg if you don't want to get NAIPs in order from the bucket path")
     parser.add_argument("--number-of-naips",
-                        default=6,
+                        default=64,
                         type=int,
                         help="the number of naip images to analyze, 30+ sq. km each")
     parser.add_argument("--extract-type",
@@ -77,6 +79,7 @@ def main():
                            args.randomize_naips,
                            naip_state,
                            naip_year,
+                           args.naip_extent,
                            args.extract_type,
                            args.bands,
                            args.tile_size,

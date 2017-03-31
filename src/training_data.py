@@ -9,10 +9,9 @@ import sys
 import time
 from osgeo import gdal
 from openstreetmap_labels import download_and_extract
-from geo_util import lat_lon_to_pixel, pixel_to_lat_lon, pixel_to_lat_lon_web_mercator
+from geo_util import lat_lon_to_pixel, pixel_to_lat_lon, pixel_to_lat_lon_web_mercator, pixel_to_web_mercator
 from naip_images import NAIP_DATA_DIR, NAIPDownloader
-from src.config import CACHE_PATH, LABEL_CACHE_DIRECTORY, LABELS_DATA_DIR, IMAGE_CACHE_DIRECTORY, \
-    METADATA_PATH
+from src.config import LABEL_CACHE_DIR, LABELS_DATA_DIR, IMAGE_CACHE_DIR, METADATA_FILE
 
 # there is a 300 pixel buffer around NAIPs to be trimmed off, where NAIPs overlap...
 # otherwise using overlapping images makes wonky train/test splits
@@ -58,18 +57,14 @@ def tile_naip(raster_data_path, raster_dataset, bands_data, bands_to_use, tile_s
 
     for col in range(NAIP_PIXEL_BUFFER, cols - NAIP_PIXEL_BUFFER, tile_size / tile_overlap):
         for row in range(NAIP_PIXEL_BUFFER, rows - NAIP_PIXEL_BUFFER, tile_size / tile_overlap):
-            if row + tile_size < rows - NAIP_PIXEL_BUFFER and \
-               col + tile_size < cols - NAIP_PIXEL_BUFFER:
+            if row + tile_size < rows - NAIP_PIXEL_BUFFER and col + tile_size < cols - NAIP_PIXEL_BUFFER:
                 new_tile = bands_data[row:row + tile_size, col:col + tile_size, 0:on_band_count]
                 all_tiled_data.append((new_tile, (col, row), raster_data_path))
 
     return all_tiled_data
 
 
-def way_bitmap_for_naip(
-        ways, raster_data_path,
-        raster_dataset,
-        rows, cols, pixels_to_fatten_roads=None):
+def way_bitmap_for_naip(ways, raster_data_path, raster_dataset, rows, cols, pixels_to_fatten_roads=None):
     """
     Generate a matrix of size rows x cols, initialized to all zeroes.
 
@@ -105,13 +100,11 @@ def way_bitmap_for_naip(
         for x in range(len(w['linestring']) - 1):
             current_point = w['linestring'][x]
             next_point = w['linestring'][x + 1]
-            if not bounds_contains_point(bounds, current_point) or \
-               not bounds_contains_point(bounds, next_point):
+            if not bounds_contains_point(bounds, current_point) or not bounds_contains_point(bounds, next_point):
                 continue
             current_pix = lat_lon_to_pixel(raster_dataset, current_point)
             next_pix = lat_lon_to_pixel(raster_dataset, next_point)
-            add_pixels_between(current_pix, next_pix, cols, rows, way_bitmap,
-                               pixels_to_fatten_roads)
+            add_pixels_between(current_pix, next_pix, cols, rows, way_bitmap, pixels_to_fatten_roads)
     print(" {0:.1f}s".format(time.time() - t0))
 
     print("CACHING %s..." % cache_filename, end="")
@@ -130,10 +123,15 @@ def way_bitmap_for_naip(
 
 def bounds_for_naip(raster_dataset, rows, cols):
     """Clip the NAIP to 0 to cols, 0 to rows."""
-    left_x, right_x, top_y, bottom_y = \
-        NAIP_PIXEL_BUFFER, cols - NAIP_PIXEL_BUFFER, NAIP_PIXEL_BUFFER, rows - NAIP_PIXEL_BUFFER
+    left_x, right_x = NAIP_PIXEL_BUFFER, cols - NAIP_PIXEL_BUFFER
+    top_y, bottom_y = NAIP_PIXEL_BUFFER, rows - NAIP_PIXEL_BUFFER
     sw = pixel_to_lat_lon(raster_dataset, left_x, bottom_y)
     ne = pixel_to_lat_lon(raster_dataset, right_x, top_y)
+    sw1 = pixel_to_web_mercator(raster_dataset, left_x, bottom_y)
+    ne1 = pixel_to_web_mercator(raster_dataset, right_x, top_y)
+    sw2 = pixel_to_lat_lon_web_mercator(raster_dataset, left_x, bottom_y)
+    ne2 = pixel_to_lat_lon_web_mercator(raster_dataset, right_x, top_y)
+
     return {'sw': sw, 'ne': ne}
 
 
@@ -167,8 +165,8 @@ def add_pixels_between(start_pixel, end_pixel, cols, rows, way_bitmap, pixels_to
 
 def safe_add_pixel(x, y, way_bitmap):
     """Turn on a pixel in way_bitmap if its in bounds."""
-    if x < NAIP_PIXEL_BUFFER or y < NAIP_PIXEL_BUFFER or x >= len(way_bitmap[
-            0]) - NAIP_PIXEL_BUFFER or y >= len(way_bitmap) - NAIP_PIXEL_BUFFER:
+    if x < NAIP_PIXEL_BUFFER or x >= len(way_bitmap[0]) - NAIP_PIXEL_BUFFER or \
+       y < NAIP_PIXEL_BUFFER or y >= len(way_bitmap) - NAIP_PIXEL_BUFFER:
         return
     way_bitmap[y][x] = 1
 
@@ -217,7 +215,7 @@ def create_tiled_training_data(raster_data_paths, extract_type, band_list, tile_
             for row in range(top_y, bottom_y, tile_size / tile_overlap):
                 if row + tile_size < bottom_y and col + tile_size < right_x:
                     file_suffix = '{0:016d}'.format(tile_index)
-                    label_filepath = "{}/{}.lbl".format(LABEL_CACHE_DIRECTORY, file_suffix)
+                    label_filepath = "{}/{}.lbl".format(LABEL_CACHE_DIR, file_suffix)
                     new_tile = way_bitmap_npy[row:row + tile_size, col:col + tile_size]
                     with open(label_filepath, 'w') as outfile:
                         numpy.save(outfile, numpy.asarray((new_tile, col, row, raster_data_path)))
@@ -225,17 +223,16 @@ def create_tiled_training_data(raster_data_paths, extract_type, band_list, tile_
 
         tile_index = origin_tile_index
         # tile the NAIP
-        for tile in tile_naip(raster_data_path, raster_dataset, bands_data, band_list, tile_size,
-                              tile_overlap):
+        for tile in tile_naip(raster_data_path, raster_dataset, bands_data, band_list, tile_size, tile_overlap):
             file_suffix = '{0:016d}'.format(tile_index)
-            img_filepath = "{}/{}.colors".format(IMAGE_CACHE_DIRECTORY, file_suffix)
+            img_filepath = "{}/{}.colors".format(IMAGE_CACHE_DIR, file_suffix)
             with open(img_filepath, 'w') as outfile:
                 numpy.save(outfile, tile)
             tile_index += 1
 
     # dump the metadata to disk for configuring the analysis script later
     training_info = {'bands': band_list, 'tile_size': tile_size, 'naip_state': naip_state}
-    with open(CACHE_PATH + METADATA_PATH, 'w') as outfile:
+    with open(METADATA_FILE, 'w') as outfile:
         pickle.dump(training_info, outfile)
 
 
@@ -288,12 +285,12 @@ def format_as_onehot_arrays(new_label_paths):
     off_count = 0
     for filename in new_label_paths:
 
-        full_path = "{}/{}".format(LABEL_CACHE_DIRECTORY, filename)
+        full_path = "{}/{}".format(LABEL_CACHE_DIR, filename)
         label = numpy.load(full_path)
 
         parts = full_path.split('.')[0].split('/')
         file_suffix = parts[len(parts)-1]
-        img_path = "{}/{}.colors".format(IMAGE_CACHE_DIRECTORY, file_suffix)
+        img_path = "{}/{}.colors".format(IMAGE_CACHE_DIR, file_suffix)
 
         if has_ways_in_center(label[0], 1):
             onehot_training_labels.append([0, 1])
@@ -313,7 +310,7 @@ def load_training_tiles(number_of_tiles):
     print("LOADING DATA: reading from disk and unpickling")
     t0 = time.time()
     training_label_paths = []
-    all_paths = os.listdir(LABEL_CACHE_DIRECTORY)
+    all_paths = os.listdir(LABEL_CACHE_DIR)
     for x in range(0, number_of_tiles):
         label_path = random.choice(all_paths)
         training_label_paths.append(label_path)
@@ -328,8 +325,7 @@ def load_all_training_tiles(naip_path, bands):
     tile_size = 64
     tile_overlap = 1
     raster_dataset, bands_data = read_naip(naip_path, bands)
-    training_images = tile_naip(naip_path, raster_dataset, bands_data, bands, tile_size,
-                                tile_overlap)
+    training_images = tile_naip(naip_path, raster_dataset, bands_data, bands, tile_size, tile_overlap)
     rows = bands_data.shape[0]
     cols = bands_data.shape[1]
     parts = naip_path.split('/')
@@ -363,10 +359,8 @@ def tag_with_locations(test_images, predictions, tile_size, state_abbrev):
         raster_dataset = gdal.Open(os.path.join(NAIP_DATA_DIR, raster_filename), gdal.GA_ReadOnly)
         raster_tile_x = img_loc_tuple[1][0]
         raster_tile_y = img_loc_tuple[1][1]
-        ne_lat, ne_lon = pixel_to_lat_lon_web_mercator(raster_dataset, raster_tile_x +
-                                                       tile_size, raster_tile_y)
-        sw_lat, sw_lon = pixel_to_lat_lon_web_mercator(raster_dataset, raster_tile_x,
-                                                       raster_tile_y + tile_size)
+        ne_lat, ne_lon = pixel_to_lat_lon_web_mercator(raster_dataset, raster_tile_x + tile_size, raster_tile_y)
+        sw_lat, sw_lon = pixel_to_lat_lon_web_mercator(raster_dataset, raster_tile_x, raster_tile_y + tile_size)
         certainty = predictions[idx][0]
         formatted_info = {'certainty': certainty, 'ne_lat': ne_lat, 'ne_lon': ne_lon,
                           'sw_lat': sw_lat, 'sw_lon': sw_lon, 'raster_tile_x': raster_tile_x,
@@ -381,6 +375,7 @@ def download_and_serialize(number_of_naips,
                            randomize_naips,
                            naip_state,
                            naip_year,
+                           naip_extent,
                            extract_type,
                            bands,
                            tile_size,
@@ -391,7 +386,8 @@ def download_and_serialize(number_of_naips,
     raster_data_paths = NAIPDownloader(number_of_naips,
                                        randomize_naips,
                                        naip_state,
-                                       naip_year).download_naips()
+                                       naip_year,
+                                       naip_extent).download_naips()
 
     create_tiled_training_data(raster_data_paths,
                                extract_type,

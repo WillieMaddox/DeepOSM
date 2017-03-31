@@ -7,16 +7,14 @@ import time
 import tensorflow as tf
 import tflearn
 from tflearn.layers.conv import conv_2d, max_pool_2d
-from src.training_data import CACHE_PATH, METADATA_PATH, load_training_tiles, equalize_data, \
-    format_as_onehot_arrays, has_ways_in_center
-
-MODEL_METADATA_FILENAME = 'model_metadata.pickle'
+from src.config import MODEL_METADATA_FILE, MODEL_FILE, METADATA_FILE
+from src.training_data import load_training_tiles, equalize_data, format_as_onehot_arrays, has_ways_in_center
 
 
 def train_on_cached_data(neural_net_type, number_of_epochs):
     """Load tiled/cached training data in batches, and train the neural net."""
 
-    with open(CACHE_PATH + METADATA_PATH, 'r') as infile:
+    with open(METADATA_FILE, 'r') as infile:
         training_info = pickle.load(infile)
     bands = training_info['bands']
     tile_size = training_info['tile_size']
@@ -118,19 +116,19 @@ def model_for_type(neural_net_type, tile_size, on_band_count):
 
 def save_model(model, neural_net_type, bands, tile_size):
     """Save a DeepOSM tflearn model and its metadata. """
-    model.save(CACHE_PATH + 'model.pickle')
+    model.save(MODEL_FILE)
     # dump the training metadata to disk, for later loading model from disk
     training_info = {'neural_net_type': neural_net_type,
                      'bands': bands,
                      'tile_size': tile_size}
-    with open(CACHE_PATH + MODEL_METADATA_FILENAME, 'w') as outfile:
+    with open(MODEL_METADATA_FILE, 'w') as outfile:
         pickle.dump(training_info, outfile)
 
 
 def load_model(neural_net_type, tile_size, on_band_count):
     """Load the TensorFlow model serialized at path."""
     model = model_for_type(neural_net_type, tile_size, on_band_count)
-    model.load(CACHE_PATH + 'model.pickle')
+    model.load(MODEL_FILE)
     return model
 
 

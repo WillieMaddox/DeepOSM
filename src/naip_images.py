@@ -12,8 +12,12 @@ from src.config import cache_paths, create_cache_directories, NAIP_DATA_DIR, LAB
 class NAIPDownloader:
     """Downloads NAIP images from S3, by state/year."""
 
-    def __init__(self, number_of_naips, should_randomize, state, year):
-        """Download some arbitrary NAIP images from the aws-naip S3 bucket."""
+    def __init__(self, number_of_naips, should_randomize, state, year, extent=None):
+        """
+        Download some arbitrary NAIP images from the aws-naip S3 bucket.
+        
+        extent (optional) should be a 4-tuple of decimal degrees (x_left, y_bottom, x_right, y_top)
+        """
         self.number_of_naips = number_of_naips
         self.should_randomize = should_randomize
 
@@ -22,29 +26,16 @@ class NAIPDownloader:
         self.resolution = '1m'
         self.spectrum = 'rgbir'
         self.bucket_url = 's3://aws-naip/'
+        self.extent = extent
 
-        self.url_base = '{}{}/{}/{}/{}/'.format(self.bucket_url, self.state, self.year,
-                                                self.resolution, self.spectrum)
+        self.url_base = '{}{}/{}/{}/{}/'.format(self.bucket_url, self.state, self.year, self.resolution, self.spectrum)
 
-        self.make_directory(NAIP_DATA_DIR, full_path=True)
+        self.make_directory(NAIP_DATA_DIR)
 
-    def make_directory(self, new_dir, full_path=False):
+    def make_directory(self, new_dir):
         """Make a new directory tree if it doesn't already exist."""
-        if full_path:
-            path = ''
-            for token in new_dir.split('/'):
-                path += token + '/'
-                try:
-                    os.mkdir(path)
-                except:
-                    pass
-            return path
-
-        try:
-            os.mkdir(new_dir)
-        except:
-            pass
-        return new_dir
+        if not os.path.exists(new_dir):
+            os.makedirs(new_dir)
 
     def download_naips(self):
         """Download self.number_of_naips of the naips for a given state."""
@@ -74,18 +65,20 @@ class NAIPDownloader:
     def list_naips(self):
         """Make a list of NAIPs based on the init parameters for the class."""
         # list the contents of the bucket directory
-        bash_command = "s3cmd ls --recursive --skip-existing {} --requester-pays".format(
-            self.url_base)
+        bash_command = "s3cmd ls --recursive --skip-existing {} --requester-pays".format(self.url_base)
         process = subprocess.Popen(bash_command.split(" "), stdout=subprocess.PIPE)
         output = process.communicate()[0]
         naip_filenames = []
         print(output)
         for line in output.split('\n'):
             parts = line.split(self.url_base)
-            print(parts)
             # there may be subdirectories for each state, where directories need to be made
             if len(parts) == 2:
                 naip_path = parts[1]
+                if not self.naip_in_extent(naip_path):
+                    continue
+                print(parts)
+
                 naip_filenames.append(naip_path)
                 naip_subpath = os.path.join(NAIP_DATA_DIR, naip_path.split('/')[0])
                 if not os.path.exists(naip_subpath):
@@ -98,6 +91,53 @@ class NAIPDownloader:
                 # skip non filename lines from response
 
         return naip_filenames
+
+    def naip_in_extent(self, naip_path):
+        """
+        # Added by WMIV on 3/31/17
+        :param naip_path: 
+        :type naip_path: 
+        :return: 
+        :rtype: 
+        """
+        if self.extent is None:
+            return True
+        ns_map = {'n': 0, 's': 1}
+        we_map = {'w': 0, 'e': 1}
+        e_left, e_right = self.extent[0], self.extent[2]
+        e_bottom, e_top = self.extent[1], self.extent[3]
+        naip_fname = naip_path.split('/')[1]
+        lat = (float(naip_fname[2:4]) + 1)
+        lon = (float(naip_fname[4:7]) + 1) * -1
+        pix = int(naip_fname[7:9])
+        n_or_s = naip_fname[10]
+        assert n_or_s in ns_map.keys()
+        w_or_e = naip_fname[11]
+        assert w_or_e in we_map.keys()
+        col = (pix - 1) % 8
+        row = (pix - 1) / 8
+
+        n_left = lon + (col / 8.0 + we_map[w_or_e] / 16.0)
+        n_top = lat - (row / 8.0 + ns_map[n_or_s] / 16.0)
+        n_right = n_left + 1 / 16.0
+        n_bottom = n_top - 1 / 16.0
+
+        if n_left <= e_right and n_right >= e_left and n_top >= e_bottom and n_bottom <= e_top:
+            return True
+
+        return False
+
+    def naip_in_extent_orig(self, naip_path):
+        if self.extent is None:
+            return True
+        x_left, x_right = int(self.extent[0]), int(self.extent[2])
+        y_bottom, y_top = int(self.extent[1]), int(self.extent[3])
+        lat_lon_str = naip_path.split('/')[0]
+        lat = int(lat_lon_str[:2])
+        lon = int(lat_lon_str[2:]) * -1  # naip only in USA so it's safe to assume negative longitude.
+        if x_left <= lon <= x_right and y_bottom <= lat <= y_top:
+            return True
+        return False
 
     def download_from_s3(self, naip_filenames):
         """Download the NAIPs and return a list of the file paths."""
@@ -119,8 +159,7 @@ class NAIPDownloader:
                     has_printed = True
                 url_without_prefix = self.url_base.split(self.bucket_url)[1]
                 s3_url = '{}{}'.format(url_without_prefix, filename)
-                s3_client.download_file('aws-naip', s3_url, full_path, {'RequestPayer': 'requester'
-                                                                        })
+                s3_client.download_file('aws-naip', s3_url, full_path, {'RequestPayer': 'requester'})
             naip_local_paths.append(full_path)
         if time.time() - t0 > 0.01:
             print("downloads took {0:.1f}s".format(time.time() - t0))
@@ -132,7 +171,8 @@ if __name__ == '__main__':
     if len(sys.argv) == 1:
         print(parameters_message)
     elif sys.argv[1] == 'download':
-        naiper = NAIPDownloader()
+        extent = (-86.823, 34.505, -86.367, 34.927)
+        naiper = NAIPDownloader(256, False, 'al', '2015', extent=extent)
         naiper.download_naips()
     else:
         print(parameters_message)
