@@ -127,18 +127,6 @@ class NAIPDownloader:
 
         return False
 
-    def naip_in_extent_orig(self, naip_path):
-        if self.extent is None:
-            return True
-        x_left, x_right = int(self.extent[0]), int(self.extent[2])
-        y_bottom, y_top = int(self.extent[1]), int(self.extent[3])
-        lat_lon_str = naip_path.split('/')[0]
-        lat = int(lat_lon_str[:2])
-        lon = int(lat_lon_str[2:]) * -1  # naip only in USA so it's safe to assume negative longitude.
-        if x_left <= lon <= x_right and y_bottom <= lat <= y_top:
-            return True
-        return False
-
     def download_from_s3(self, naip_filenames):
         """Download the NAIPs and return a list of the file paths."""
         s3_client = boto3.client('s3')
