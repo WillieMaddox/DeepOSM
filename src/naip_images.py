@@ -81,11 +81,9 @@ class NAIPDownloader:
 
                 naip_filenames.append(naip_path)
                 naip_subpath = os.path.join(NAIP_DATA_DIR, naip_path.split('/')[0])
-                if not os.path.exists(naip_subpath):
-                    os.mkdir(naip_subpath)
+                self.make_directory(naip_subpath)
                 labels_subpath = os.path.join(LABELS_DATA_DIR, naip_path.split('/')[0])
-                if not os.path.exists(labels_subpath):
-                    os.mkdir(labels_subpath)
+                self.make_directory(labels_subpath)
             else:
                 pass
                 # skip non filename lines from response
