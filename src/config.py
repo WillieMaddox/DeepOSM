@@ -9,8 +9,8 @@ FINDINGS_S3_BUCKET = 'deeposm'
 
 # set in Dockerfile as env variable
 GEO_DATA_DIR = os.environ.get("GEO_DATA_DIR", os.environ.get("HOME") + "/git/DeepOSM/data")
-SRC_DATA_DIR = "/media/RED6/DATA/Terrain_data/imagery"
-
+# SRC_DATA_DIR = "/media/RED6/DATA/Terrain_data/imagery"
+SRC_DATA_DIR = "/media/Borg_LS/terrain/imagery"
 # where training data gets cached/retrieved
 NAIP_DATA_DIR = os.path.join(SRC_DATA_DIR, "naip")
 CACHE_PATH = os.path.join(GEO_DATA_DIR, "generated")
