@@ -75,7 +75,7 @@ class NAIPDownloader:
             # there may be subdirectories for each state, where directories need to be made
             if len(parts) == 2:
                 naip_path = parts[1]
-                if not self.naip_in_extent(naip_path):
+                if not self.naip_in_extent(naip_path.split('/')[1]):
                     continue
                 print(parts)
 
@@ -92,21 +92,24 @@ class NAIPDownloader:
 
         return naip_filenames
 
-    def naip_in_extent(self, naip_path):
+    def naip_in_extent(self, naip_fname):
         """
         # Added by WMIV on 3/31/17
-        :param naip_path: 
-        :type naip_path: 
-        :return: 
-        :rtype: 
+        The first 12 characters of the naip_fname should have the
+        following structure: m_3807503_ne_18_1_20130907.tif
+        If not, the indices to naip_fname below will need to be modified.
+        :param naip_fname: 
+        :type naip_fname: string
+        :return: True if naip overlaps with extent
+        :rtype: bool
         """
         if self.extent is None:
             return True
+
         ns_map = {'n': 0, 's': 1}
         we_map = {'w': 0, 'e': 1}
         e_left, e_right = self.extent[0], self.extent[2]
         e_bottom, e_top = self.extent[1], self.extent[3]
-        naip_fname = naip_path.split('/')[1]
         lat = (float(naip_fname[2:4]) + 1)
         lon = (float(naip_fname[4:7]) + 1) * -1
         pix = int(naip_fname[7:9])
@@ -116,7 +119,6 @@ class NAIPDownloader:
         assert w_or_e in we_map.keys()
         col = (pix - 1) % 8
         row = (pix - 1) / 8
-
         n_left = lon + (col / 8.0 + we_map[w_or_e] / 16.0)
         n_top = lat - (row / 8.0 + ns_map[n_or_s] / 16.0)
         n_right = n_left + 1 / 16.0
