@@ -104,14 +104,10 @@ class WayExtracter(o.SimpleHandler):
         """Append the way_dict, with coords normalized to (lat,lon) instead of (lon,lat) pairs."""
         try:
             wkb = wkbfab.create_linestring(w)
-        except:
-            # throws on single point ways
+        except:  # throws on single point ways
             return
         line = wkblib.loads(wkb, hex=True)
-        reverse_points = []
-        for point in list(line.coords):
-            reverse_points.append([point[1], point[0]])
-        way_dict['linestring'] = reverse_points
+        way_dict['linestring'] = list(line.coords)
         self.ways.append(way_dict)
 
 

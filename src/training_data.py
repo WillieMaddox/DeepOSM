@@ -9,7 +9,7 @@ import sys
 import time
 from osgeo import gdal
 from openstreetmap_labels import download_and_extract
-from geo_util import lat_lon_to_pixel, pixel_to_lat_lon, pixel_to_lat_lon_web_mercator, pixel_to_web_mercator
+from geo_util import lon_lat_to_pixel, pixel_to_lon_lat
 from naip_images import NAIP_DATA_DIR, NAIPDownloader
 from src.config import LABEL_CACHE_DIR, LABELS_DATA_DIR, IMAGE_CACHE_DIR, METADATA_FILE
 
@@ -102,8 +102,8 @@ def way_bitmap_for_naip(ways, raster_data_path, raster_dataset, rows, cols, pixe
             next_point = w['linestring'][x + 1]
             if not bounds_contains_point(bounds, current_point) or not bounds_contains_point(bounds, next_point):
                 continue
-            current_pix = lat_lon_to_pixel(raster_dataset, current_point)
-            next_pix = lat_lon_to_pixel(raster_dataset, next_point)
+            current_pix = lon_lat_to_pixel(raster_dataset, current_point)
+            next_pix = lon_lat_to_pixel(raster_dataset, next_point)
             add_pixels_between(current_pix, next_pix, cols, rows, way_bitmap, pixels_to_fatten_roads)
     print(" {0:.1f}s".format(time.time() - t0))
 
@@ -125,13 +125,8 @@ def bounds_for_naip(raster_dataset, rows, cols):
     """Clip the NAIP to 0 to cols, 0 to rows."""
     left_x, right_x = NAIP_PIXEL_BUFFER, cols - NAIP_PIXEL_BUFFER
     top_y, bottom_y = NAIP_PIXEL_BUFFER, rows - NAIP_PIXEL_BUFFER
-    sw = pixel_to_lat_lon(raster_dataset, left_x, bottom_y)
-    ne = pixel_to_lat_lon(raster_dataset, right_x, top_y)
-    sw1 = pixel_to_web_mercator(raster_dataset, left_x, bottom_y)
-    ne1 = pixel_to_web_mercator(raster_dataset, right_x, top_y)
-    sw2 = pixel_to_lat_lon_web_mercator(raster_dataset, left_x, bottom_y)
-    ne2 = pixel_to_lat_lon_web_mercator(raster_dataset, right_x, top_y)
-
+    sw = pixel_to_lon_lat(raster_dataset, left_x, bottom_y)
+    ne = pixel_to_lon_lat(raster_dataset, right_x, top_y)
     return {'sw': sw, 'ne': ne}
 
 

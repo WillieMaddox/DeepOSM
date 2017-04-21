@@ -4,39 +4,39 @@ from osgeo import osr
 from pyproj import Proj, transform
 
 
-def lat_lon_to_pixel(raster_dataset, location):
+def lon_lat_to_pixel(raster_dataset, location):
     """From zacharybears.com/using-python-to-translate-latlon-locations-to-pixels-on-a-geotiff/."""
     ds = raster_dataset
     gt = ds.GetGeoTransform()
     srs = osr.SpatialReference()
     srs.ImportFromWkt(ds.GetProjection())
 
-    srs_lat_lon = srs.CloneGeogCS()
-    ct = osr.CoordinateTransformation(srs_lat_lon, srs)
+    srs_lon_lat = srs.CloneGeogCS()
+    ct = osr.CoordinateTransformation(srs_lon_lat, srs)
     new_location = [None, None]
     # Change the point locations into the GeoTransform space
-    (new_location[1], new_location[0], holder) = ct.TransformPoint(location[1], location[0])
+    (new_location[0], new_location[1], holder) = ct.TransformPoint(location[0], location[1])
     # Translate the x and y coordinates into pixel values
-    x = (new_location[1] - gt[0]) / gt[1]
-    y = (new_location[0] - gt[3]) / gt[5]
+    x = (new_location[0] - gt[0]) / gt[1]
+    y = (new_location[1] - gt[3]) / gt[5]
     return int(x), int(y)
 
 
-def pixel_to_lat_lon(raster_dataset, col, row):
+def pixel_to_lon_lat(raster_dataset, col, row):
     """From zacharybears.com/using-python-to-translate-latlon-locations-to-pixels-on-a-geotiff/."""
     ds = raster_dataset
     gt = ds.GetGeoTransform()
     srs = osr.SpatialReference()
     srs.ImportFromWkt(ds.GetProjection())
 
-    srs_lat_lon = srs.CloneGeogCS()
-    ct = osr.CoordinateTransformation(srs, srs_lat_lon)
+    srs_lon_lat = srs.CloneGeogCS()
+    ct = osr.CoordinateTransformation(srs, srs_lon_lat)
 
     ulon = col * gt[1] + gt[0]
     ulat = row * gt[5] + gt[3]
 
     (lon, lat, holder) = ct.TransformPoint(ulon, ulat)
-    return lat, lon
+    return lon, lat
 
 
 def pixel_to_web_mercator(raster_dataset, col, row):
@@ -54,7 +54,7 @@ def pixel_to_web_mercator(raster_dataset, col, row):
     ulat = row * gt[5] + gt[3]
 
     (lon, lat, holder) = ct.TransformPoint(ulon, ulat)
-    return lat, lon
+    return lon, lat
 
 
 def pixel_to_lat_lon_web_mercator(raster_dataset, col, row):
