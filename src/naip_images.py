@@ -154,6 +154,22 @@ class NAIPDownloader:
         return naip_local_paths
 
 
+def naip_grid_example():
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlim(-87, -86)
+    ax.set_ylim(34, 35)
+
+    for fname in os.listdir('.'):
+        with open(fname) as ifs:
+            a = json.load(ifs)
+            s = fname[7:12]
+            p = a["wgs84Extent"]["coordinates"][0][0]
+            ax.annotate(s, xy=p)
+
+    plt.show()
+
 if __name__ == '__main__':
     parameters_message = "parameters are: download"
     if len(sys.argv) == 1:
