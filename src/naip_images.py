@@ -12,7 +12,7 @@ from src.config import cache_paths, create_cache_directories, NAIP_DATA_DIR, LAB
 class NAIPDownloader:
     """Downloads NAIP images from S3, by state/year."""
 
-    def __init__(self, number_of_naips, should_randomize, state, year, extent=None):
+    def __init__(self, number_of_naips, should_randomize, state, year, extents=None):
         """
         Download some arbitrary NAIP images from the aws-naip S3 bucket.
         
@@ -26,7 +26,8 @@ class NAIPDownloader:
         self.resolution = '1m'
         self.spectrum = 'rgbir'
         self.bucket_url = 's3://aws-naip/'
-        self.extent = extent
+
+        self.extents = [extents] if isinstance(extents, tuple) else extents
 
         self.url_base = '{}{}/{}/{}/{}/'.format(self.bucket_url, self.state, self.year, self.resolution, self.spectrum)
 
@@ -69,7 +70,7 @@ class NAIPDownloader:
         process = subprocess.Popen(bash_command.split(" "), stdout=subprocess.PIPE)
         output = process.communicate()[0]
         naip_filenames = []
-        print(output)
+        # print(output)
         for line in output.split('\n'):
             parts = line.split(self.url_base)
             # there may be subdirectories for each state, where directories need to be made
@@ -101,13 +102,11 @@ class NAIPDownloader:
         :return: True if naip overlaps with extent
         :rtype: bool
         """
-        if self.extent is None:
+        if self.extents is None:
             return True
 
         ns_map = {'n': 0, 's': 1}
         we_map = {'w': 0, 'e': 1}
-        e_left, e_right = self.extent[0], self.extent[2]
-        e_bottom, e_top = self.extent[1], self.extent[3]
         lat = (float(naip_fname[2:4]) + 1)
         lon = (float(naip_fname[4:7]) + 1) * -1
         pix = int(naip_fname[7:9])
@@ -122,8 +121,11 @@ class NAIPDownloader:
         n_right = n_left + 1 / 16.0
         n_bottom = n_top - 1 / 16.0
 
-        if n_left <= e_right and n_right >= e_left and n_top >= e_bottom and n_bottom <= e_top:
-            return True
+        for extent in self.extents:
+            e_left, e_right = extent[0], extent[2]
+            e_bottom, e_top = extent[1], extent[3]
+            if n_left <= e_right and n_right >= e_left and n_top >= e_bottom and n_bottom <= e_top:
+                return True
 
         return False
 
